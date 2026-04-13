@@ -2,7 +2,7 @@ name: Sync Upstream and Build
 
 on:
   schedule:
-    - cron: '0 4 * * *'   # daily at 4:00 UTC
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,6 @@ jobs:
         id: check
         run: |
           LATEST=$(git tag --sort=-v:refname | head -1)
-          # Check if we already have a fork-built release with zip assets for this tag
           HAS_ZIPS=$(gh release view "$LATEST" --json assets --jq '[.assets[].name | select(endswith(".zip"))] | length' 2>/dev/null || echo "0")
           if [ "$HAS_ZIPS" = "0" ]; then
             echo "new_tag=true" >> $GITHUB_OUTPUT
@@ -44,31 +43,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-linux-windows:
+  build-linux-amd64:
     needs: sync
     if: needs.sync.outputs.new_tag == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
         working-directory: cffi_dist
         run: |
-          # Linux amd64
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
             go build -buildmode=c-shared -o ../out/linux-x86_64/libtls_client_go.so .
-          # Linux arm64
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
-            go build -buildmode=c-shared -o ../out/linux-aarch64/libtls_client_go.so .
-          # Windows amd64
-          sudo apt-get install -y gcc-mingw-w64-x86-64
-          CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
-            go build -buildmode=c-shared -o ../out/windows-x86_64/tls_client_go.dll .
       - uses: actions/upload-artifact@v4
-        with: { name: linux-windows, path: out/ }
+        with: { name: linux-x86_64, path: out/ }
+
+  build-linux-arm64:
+    needs: sync
+    if: needs.sync.outputs.new_tag == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
+            go build -buildmode=c-shared -o ../out/linux-aarch64/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-aarch64, path: out/ }
+
+  build-windows:
+    needs: sync
+    if: needs.sync.outputs.new_tag == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          $env:CGO_ENABLED="1"
+          go build -buildmode=c-shared -o ../out/windows-x86_64/tls_client_go.dll .
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-x86_64, path: out/ }
 
   build-macos:
     needs: sync
@@ -76,7 +97,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -95,7 +115,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -112,17 +131,13 @@ jobs:
         with: { name: android, path: out/ }
 
   release:
-    needs: [sync, build-linux-windows, build-macos, build-android]
+    needs: [sync, build-linux-amd64, build-linux-arm64, build-windows, build-macos, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
-        with: { name: linux-windows, path: out/ }
-      - uses: actions/download-artifact@v4
-        with: { name: macos, path: out/ }
-      - uses: actions/download-artifact@v4
-        with: { name: android, path: out/ }
+        with: { path: out/, merge-multiple: true }
 
       - name: Create release
         env:
@@ -138,7 +153,6 @@ jobs:
           done
           cd ..
 
-          # Delete inherited upstream release if it exists (has no zip assets)
           gh release delete "$TAG" --yes 2>/dev/null || true
 
           gh release create "$TAG" \
