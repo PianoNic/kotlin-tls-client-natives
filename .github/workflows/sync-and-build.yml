@@ -31,14 +31,15 @@ jobs:
         id: check
         run: |
           LATEST=$(git tag --sort=-v:refname | head -1)
-          BUILT=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "none")
-          if [ "$LATEST" != "$BUILT" ]; then
+          # Check if we already have a fork-built release with zip assets for this tag
+          HAS_ZIPS=$(gh release view "$LATEST" --json assets --jq '[.assets[].name | select(endswith(".zip"))] | length' 2>/dev/null || echo "0")
+          if [ "$HAS_ZIPS" = "0" ]; then
             echo "new_tag=true" >> $GITHUB_OUTPUT
             echo "version=${LATEST#v}" >> $GITHUB_OUTPUT
-            echo "New tag to build: $LATEST (last built: $BUILT)"
+            echo "Need to build: $LATEST (no zip assets found)"
           else
             echo "new_tag=false" >> $GITHUB_OUTPUT
-            echo "Already up to date: $BUILT"
+            echo "Already built: $LATEST ($HAS_ZIPS zips)"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,6 +137,9 @@ jobs:
             zip -j "../$platform.zip" "$dir"/*
           done
           cd ..
+
+          # Delete inherited upstream release if it exists (has no zip assets)
+          gh release delete "$TAG" --yes 2>/dev/null || true
 
           gh release create "$TAG" \
             *.zip \
