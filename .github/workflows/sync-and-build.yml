@@ -1,0 +1,143 @@
+name: Sync Upstream and Build
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # daily at 4:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.check.outputs.new_tag }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync with upstream
+        run: |
+          git remote add upstream https://github.com/bogdanfinn/tls-client.git || true
+          git fetch upstream --tags
+          git merge upstream/master --no-edit || true
+          git push origin master --tags
+
+      - name: Check for new release tag
+        id: check
+        run: |
+          LATEST=$(git tag --sort=-v:refname | head -1)
+          BUILT=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "none")
+          if [ "$LATEST" != "$BUILT" ]; then
+            echo "new_tag=true" >> $GITHUB_OUTPUT
+            echo "version=${LATEST#v}" >> $GITHUB_OUTPUT
+            echo "New tag to build: $LATEST (last built: $BUILT)"
+          else
+            echo "new_tag=false" >> $GITHUB_OUTPUT
+            echo "Already up to date: $BUILT"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux-windows:
+    needs: sync
+    if: needs.sync.outputs.new_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          # Linux amd64
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+            go build -buildmode=c-shared -o ../out/linux-x86_64/libtls_client_go.so .
+          # Linux arm64
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
+            go build -buildmode=c-shared -o ../out/linux-aarch64/libtls_client_go.so .
+          # Windows amd64
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+          CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
+            go build -buildmode=c-shared -o ../out/windows-x86_64/tls_client_go.dll .
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-windows, path: out/ }
+
+  build-macos:
+    needs: sync
+    if: needs.sync.outputs.new_tag == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            go build -buildmode=c-shared -o ../out/macos-arm64/libtls_client_go.dylib .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+            go build -buildmode=c-shared -o ../out/macos-x86_64/libtls_client_go.dylib .
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: out/ }
+
+  build-android:
+    needs: sync
+    if: needs.sync.outputs.new_tag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          NDK_BIN=$(find "$ANDROID_HOME/ndk" -name "aarch64-linux-android21-clang" | head -1 | xargs dirname)
+          CC="$NDK_BIN/aarch64-linux-android21-clang" \
+            CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
+            go build -buildmode=c-shared -o ../out/arm64-v8a/libtls_client_go.so .
+          CC="$NDK_BIN/armv7a-linux-androideabi21-clang" \
+            CGO_ENABLED=1 GOOS=android GOARCH=arm \
+            go build -buildmode=c-shared -o ../out/armeabi-v7a/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: out/ }
+
+  release:
+    needs: [sync, build-linux-windows, build-macos, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with: { name: linux-windows, path: out/ }
+      - uses: actions/download-artifact@v4
+        with: { name: macos, path: out/ }
+      - uses: actions/download-artifact@v4
+        with: { name: android, path: out/ }
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.sync.outputs.version }}"
+          TAG="v$VERSION"
+
+          cd out
+          for dir in */; do
+            platform="${dir%/}"
+            zip -j "../$platform.zip" "$dir"/*
+          done
+          cd ..
+
+          gh release create "$TAG" \
+            *.zip \
+            --title "tls-client $TAG" \
+            --notes "Auto-built from upstream bogdanfinn/tls-client $TAG"
