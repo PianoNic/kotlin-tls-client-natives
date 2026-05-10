@@ -2,7 +2,8 @@ name: Sync Upstream and Build
 
 on:
   schedule:
-    - cron: '0 4 * * *'
+    # 01:00 UTC = 03:00 CEST / 02:00 CET. GitHub may delay scheduled runs by up to ~1h.
+    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       force:
