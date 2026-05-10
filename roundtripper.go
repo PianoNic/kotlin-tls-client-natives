@@ -125,6 +125,7 @@ func buildHTTP3Transport(cfg *http3Config) (http.RoundTripper, error) {
 	}
 	if cfg.transportOptions != nil {
 		utlsConfig.RootCAs = cfg.transportOptions.RootCAs
+		utlsConfig.Certificates = cfg.transportOptions.Certificates
 	}
 
 	if cfg.serverNameOverwrite != "" {
@@ -193,19 +194,24 @@ func buildHTTP3Transport(cfg *http3Config) (http.RoundTripper, error) {
 
 		if maxResponseHeaderBytes > 0 {
 			t3.MaxResponseHeaderBytes = maxResponseHeaderBytes
-		} else if maxResponseHeaderBytes == 0 {
-			// Chrome's default MAX_FIELD_SECTION_SIZE
-			t3.MaxResponseHeaderBytes = CHROME_MAX_FIELD_SECTION_SIZE
-		} else {
+		} else if maxResponseHeaderBytes < 0 {
 			// -1 means don't send SETTINGS_MAX_FIELD_SECTION_SIZE (Firefox behavior)
 			t3.MaxResponseHeaderBytes = -1
+		} else {
+			t3.MaxResponseHeaderBytes = profileDefaultMaxResponseHeaderBytes(cfg)
 		}
 	} else {
-		// Chrome's default MAX_FIELD_SECTION_SIZE
-		t3.MaxResponseHeaderBytes = CHROME_MAX_FIELD_SECTION_SIZE
+		t3.MaxResponseHeaderBytes = profileDefaultMaxResponseHeaderBytes(cfg)
 	}
 
 	return t3, nil
+}
+
+func profileDefaultMaxResponseHeaderBytes(cfg *http3Config) int {
+	if cfg.http3PriorityParam > 0 {
+		return CHROME_MAX_FIELD_SECTION_SIZE
+	}
+	return -1
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -295,6 +301,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	if rt.transportOptions != nil {
 		tlsConfig.RootCAs = rt.transportOptions.RootCAs
 		tlsConfig.KeyLogWriter = rt.transportOptions.KeyLogWriter
+		tlsConfig.Certificates = rt.transportOptions.Certificates
 	}
 
 	rawConn = rt.bandwidthTracker.TrackConnection(ctx, rawConn)
@@ -324,6 +331,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		utlsConfig := &tls.Config{ClientSessionCache: rt.clientSessionCache, InsecureSkipVerify: rt.insecureSkipVerify, OmitEmptyPsk: true}
 		if rt.transportOptions != nil {
 			utlsConfig.RootCAs = rt.transportOptions.RootCAs
+			utlsConfig.Certificates = rt.transportOptions.Certificates
 		}
 
 		if rt.serverNameOverwrite != "" {
@@ -439,6 +447,7 @@ func (rt *roundTripper) buildHttp1Transport() *http.Transport {
 	utlsConfig := &tls.Config{ClientSessionCache: rt.clientSessionCache, InsecureSkipVerify: rt.insecureSkipVerify, OmitEmptyPsk: true}
 	if rt.transportOptions != nil {
 		utlsConfig.RootCAs = rt.transportOptions.RootCAs
+		utlsConfig.Certificates = rt.transportOptions.Certificates
 	}
 
 	if rt.serverNameOverwrite != "" {
@@ -509,6 +518,7 @@ func (rt *roundTripper) dialTLSForWebsocket(ctx context.Context, network, addr s
 	if rt.transportOptions != nil {
 		tlsConfig.RootCAs = rt.transportOptions.RootCAs
 		tlsConfig.KeyLogWriter = rt.transportOptions.KeyLogWriter
+		tlsConfig.Certificates = rt.transportOptions.Certificates
 	}
 
 	rawConn = rt.bandwidthTracker.TrackConnection(ctx, rawConn)
