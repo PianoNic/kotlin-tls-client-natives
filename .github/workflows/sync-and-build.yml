@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/sync-and-build.yml'
 
 permissions:
   contents: write
@@ -13,42 +16,82 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     outputs:
-      new_tag: ${{ steps.check.outputs.new_tag }}
-      version: ${{ steps.check.outputs.version }}
+      should_build: ${{ steps.gate.outputs.should_build }}
+      version: ${{ steps.gate.outputs.version }}
+      tag: ${{ steps.gate.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Sync with upstream
+      # Same call the "Sync fork" button makes. Surfaces conflicts loudly.
+      - name: Sync master with upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          gh api -X POST "repos/${{ github.repository }}/merge-upstream" \
+            -f branch=master
+
+      - name: Mirror upstream tags
+        run: |
+          set -e
           git remote add upstream https://github.com/bogdanfinn/tls-client.git || true
           git fetch upstream --tags
-          git merge upstream/master --no-edit || true
-          git push origin master --tags
+          # Push any new annotated tags from upstream onto origin.
+          git push origin --tags
 
-      - name: Check for new release tag
-        id: check
-        run: |
-          LATEST=$(git tag --sort=-v:refname | head -1)
-          HAS_ZIPS=$(gh release view "$LATEST" --json assets --jq '[.assets[].name | select(endswith(".zip"))] | length' 2>/dev/null || echo "0")
-          if [ "$HAS_ZIPS" = "0" ]; then
-            echo "new_tag=true" >> $GITHUB_OUTPUT
-            echo "version=${LATEST#v}" >> $GITHUB_OUTPUT
-            echo "Need to build: $LATEST (no zip assets found)"
-          else
-            echo "new_tag=false" >> $GITHUB_OUTPUT
-            echo "Already built: $LATEST ($HAS_ZIPS zips)"
-          fi
+      - name: Decide whether to build
+        id: gate
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          LATEST=$(git tag --sort=-v:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            echo "No tags found; nothing to build."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          EXPECTED="arm64-v8a.zip armeabi-v7a.zip x86.zip x86_64.zip linux-aarch64.zip linux-x86_64.zip macos-arm64.zip macos-x86_64.zip windows-x86_64.zip"
+
+          PRESENT=$(gh release view "$LATEST" --json assets --jq '[.assets[].name] | join(" ")' 2>/dev/null || echo "__no_release__")
+
+          if [ "$PRESENT" = "__no_release__" ]; then
+            echo "No release exists for $LATEST yet — building."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "version=${LATEST#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MISSING=""
+          for z in $EXPECTED; do
+            case " $PRESENT " in
+              *" $z "*) ;;
+              *) MISSING="$MISSING $z" ;;
+            esac
+          done
+
+          if [ -z "$MISSING" ]; then
+            echo "All expected zips present for $LATEST. Skipping build."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Build needed for $LATEST. Missing:$MISSING"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "version=${LATEST#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+          fi
 
   build-linux-amd64:
     needs: sync
-    if: needs.sync.outputs.new_tag == 'true'
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -61,10 +104,12 @@ jobs:
 
   build-linux-arm64:
     needs: sync
-    if: needs.sync.outputs.new_tag == 'true'
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -77,10 +122,12 @@ jobs:
 
   build-windows:
     needs: sync
-    if: needs.sync.outputs.new_tag == 'true'
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -93,10 +140,12 @@ jobs:
 
   build-macos:
     needs: sync
-    if: needs.sync.outputs.new_tag == 'true'
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -111,10 +160,12 @@ jobs:
 
   build-android:
     needs: sync
-    if: needs.sync.outputs.new_tag == 'true'
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -127,24 +178,33 @@ jobs:
           CC="$NDK_BIN/armv7a-linux-androideabi21-clang" \
             CGO_ENABLED=1 GOOS=android GOARCH=arm \
             go build -buildmode=c-shared -o ../out/armeabi-v7a/libtls_client_go.so .
+          CC="$NDK_BIN/i686-linux-android21-clang" \
+            CGO_ENABLED=1 GOOS=android GOARCH=386 \
+            go build -buildmode=c-shared -o ../out/x86/libtls_client_go.so .
+          CC="$NDK_BIN/x86_64-linux-android21-clang" \
+            CGO_ENABLED=1 GOOS=android GOARCH=amd64 \
+            go build -buildmode=c-shared -o ../out/x86_64/libtls_client_go.so .
       - uses: actions/upload-artifact@v4
         with: { name: android, path: out/ }
 
   release:
     needs: [sync, build-linux-amd64, build-linux-arm64, build-windows, build-macos, build-android]
+    if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
 
       - uses: actions/download-artifact@v4
         with: { path: out/, merge-multiple: true }
 
-      - name: Create release
+      - name: Package and publish release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ needs.sync.outputs.version }}"
-          TAG="v$VERSION"
+          set -e
+          TAG="${{ needs.sync.outputs.tag }}"
 
           cd out
           for dir in */; do
@@ -153,8 +213,8 @@ jobs:
           done
           cd ..
 
+          # Recreate the release so reruns produce a clean asset set.
           gh release delete "$TAG" --yes 2>/dev/null || true
-
           gh release create "$TAG" \
             *.zip \
             --title "tls-client $TAG" \
