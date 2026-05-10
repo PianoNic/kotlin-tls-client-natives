@@ -67,7 +67,7 @@ jobs:
             exit 0
           fi
 
-          EXPECTED="arm64-v8a.zip armeabi-v7a.zip x86.zip x86_64.zip linux-aarch64.zip linux-x86_64.zip macos-arm64.zip macos-x86_64.zip windows-x86_64.zip"
+          EXPECTED="android-arm64-v8a.zip android-armeabi-v7a.zip android-x86.zip android-x86_64.zip linux-aarch64.zip linux-arm.zip linux-x86_64.zip macos-arm64.zip macos-x86_64.zip windows-arm64.zip windows-x86_64.zip freebsd-aarch64.zip freebsd-x86_64.zip openbsd-aarch64.zip openbsd-x86_64.zip"
 
           PRESENT=$(gh release view "$LATEST" --json assets --jq '[.assets[].name] | join(" ")' 2>/dev/null || echo "__no_release__")
 
@@ -187,21 +187,172 @@ jobs:
           NDK_BIN=$(find "$ANDROID_HOME/ndk" -name "aarch64-linux-android21-clang" | head -1 | xargs dirname)
           CC="$NDK_BIN/aarch64-linux-android21-clang" \
             CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
-            go build -buildmode=c-shared -o ../out/arm64-v8a/libtls_client_go.so .
+            go build -buildmode=c-shared -o ../out/android-arm64-v8a/libtls_client_go.so .
           CC="$NDK_BIN/armv7a-linux-androideabi21-clang" \
             CGO_ENABLED=1 GOOS=android GOARCH=arm \
-            go build -buildmode=c-shared -o ../out/armeabi-v7a/libtls_client_go.so .
+            go build -buildmode=c-shared -o ../out/android-armeabi-v7a/libtls_client_go.so .
           CC="$NDK_BIN/i686-linux-android21-clang" \
             CGO_ENABLED=1 GOOS=android GOARCH=386 \
-            go build -buildmode=c-shared -o ../out/x86/libtls_client_go.so .
+            go build -buildmode=c-shared -o ../out/android-x86/libtls_client_go.so .
           CC="$NDK_BIN/x86_64-linux-android21-clang" \
             CGO_ENABLED=1 GOOS=android GOARCH=amd64 \
-            go build -buildmode=c-shared -o ../out/x86_64/libtls_client_go.so .
+            go build -buildmode=c-shared -o ../out/android-x86_64/libtls_client_go.so .
       - uses: actions/upload-artifact@v4
         with: { name: android, path: out/ }
 
+  build-linux-arm:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Install ARM cross-toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          CC=arm-linux-gnueabihf-gcc \
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 \
+            go build -buildmode=c-shared -o ../out/linux-arm/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-arm, path: out/ }
+
+  build-windows-arm64:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23' }
+      - name: Install llvm-mingw
+        run: |
+          set -e
+          MINGW_TAG="20240619"
+          MINGW_DIR="llvm-mingw-${MINGW_TAG}-msvcrt-ubuntu-20.04-x86_64"
+          curl -L -o llvm-mingw.tar.xz \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/${MINGW_TAG}/${MINGW_DIR}.tar.xz"
+          tar -xf llvm-mingw.tar.xz
+          echo "$PWD/${MINGW_DIR}/bin" >> "$GITHUB_PATH"
+      - name: Build
+        working-directory: cffi_dist
+        run: |
+          CC=aarch64-w64-mingw32-clang \
+            CGO_ENABLED=1 GOOS=windows GOARCH=arm64 \
+            go build -buildmode=c-shared -o ../out/windows-arm64/tls_client_go.dll .
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-arm64, path: out/ }
+
+  build-freebsd-amd64:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - name: Build inside FreeBSD VM
+        uses: cross-platform-actions/action@v0.27.0
+        with:
+          operating_system: freebsd
+          architecture: x86-64
+          version: '14.2'
+          shell: bash
+          run: |
+            sudo pkg install -y go
+            cd cffi_dist
+            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/freebsd-x86_64/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: freebsd-x86_64, path: out/ }
+
+  build-freebsd-arm64:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - name: Build inside FreeBSD VM
+        uses: cross-platform-actions/action@v0.27.0
+        with:
+          operating_system: freebsd
+          architecture: arm64
+          version: '14.2'
+          shell: bash
+          run: |
+            sudo pkg install -y go
+            cd cffi_dist
+            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/freebsd-aarch64/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: freebsd-aarch64, path: out/ }
+
+  build-openbsd-amd64:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - name: Build inside OpenBSD VM
+        uses: cross-platform-actions/action@v0.27.0
+        with:
+          operating_system: openbsd
+          architecture: x86-64
+          version: '7.6'
+          shell: bash
+          run: |
+            sudo pkg_add -I go
+            cd cffi_dist
+            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/openbsd-x86_64/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: openbsd-x86_64, path: out/ }
+
+  build-openbsd-arm64:
+    needs: sync
+    if: needs.sync.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync.outputs.tag }}
+      - name: Build inside OpenBSD VM
+        uses: cross-platform-actions/action@v0.27.0
+        with:
+          operating_system: openbsd
+          architecture: arm64
+          version: '7.6'
+          shell: bash
+          run: |
+            sudo pkg_add -I go
+            cd cffi_dist
+            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/openbsd-aarch64/libtls_client_go.so .
+      - uses: actions/upload-artifact@v4
+        with: { name: openbsd-aarch64, path: out/ }
+
   release:
-    needs: [sync, build-linux-amd64, build-linux-arm64, build-windows, build-macos, build-android]
+    needs:
+      - sync
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-linux-arm
+      - build-windows
+      - build-windows-arm64
+      - build-macos
+      - build-android
+      - build-freebsd-amd64
+      - build-freebsd-arm64
+      - build-openbsd-amd64
+      - build-openbsd-arm64
     if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:

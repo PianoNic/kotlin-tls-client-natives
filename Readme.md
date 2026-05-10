@@ -20,13 +20,19 @@ For every upstream tag, the workflow publishes one zip per target:
 |---|---|---|
 | `linux-x86_64.zip` | `libtls_client_go.so` | Linux x86_64 |
 | `linux-aarch64.zip` | `libtls_client_go.so` | Linux ARM64 |
+| `linux-arm.zip` | `libtls_client_go.so` | Linux ARMv7 (32-bit) |
 | `macos-x86_64.zip` | `libtls_client_go.dylib` | macOS Intel |
 | `macos-arm64.zip` | `libtls_client_go.dylib` | macOS Apple Silicon |
 | `windows-x86_64.zip` | `tls_client_go.dll` | Windows x86_64 |
-| `arm64-v8a.zip` | `libtls_client_go.so` | Android arm64 |
-| `armeabi-v7a.zip` | `libtls_client_go.so` | Android armv7 |
-| `x86.zip` | `libtls_client_go.so` | Android x86 |
-| `x86_64.zip` | `libtls_client_go.so` | Android x86_64 |
+| `windows-arm64.zip` | `tls_client_go.dll` | Windows ARM64 |
+| `android-arm64-v8a.zip` | `libtls_client_go.so` | Android arm64 |
+| `android-armeabi-v7a.zip` | `libtls_client_go.so` | Android armv7 |
+| `android-x86.zip` | `libtls_client_go.so` | Android x86 |
+| `android-x86_64.zip` | `libtls_client_go.so` | Android x86_64 |
+| `freebsd-x86_64.zip` | `libtls_client_go.so` | FreeBSD x86_64 |
+| `freebsd-aarch64.zip` | `libtls_client_go.so` | FreeBSD ARM64 |
+| `openbsd-x86_64.zip` | `libtls_client_go.so` | OpenBSD x86_64 |
+| `openbsd-aarch64.zip` | `libtls_client_go.so` | OpenBSD ARM64 |
 
 All binaries are produced by `go build -buildmode=c-shared` from `cffi_dist`.
 
