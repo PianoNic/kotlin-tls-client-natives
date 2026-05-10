@@ -104,8 +104,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -122,8 +120,6 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -140,8 +136,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -158,8 +152,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -178,8 +170,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Build
@@ -207,8 +197,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Install ARM cross-toolchain
@@ -230,8 +218,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - uses: actions/setup-go@v5
         with: { go-version: '1.23' }
       - name: Install llvm-mingw
@@ -258,8 +244,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
       - name: Build inside FreeBSD VM
         uses: cross-platform-actions/action@v0.27.0
         with:
@@ -289,8 +273,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
 
       - uses: actions/download-artifact@v4
         with: { path: out/, merge-multiple: true }
