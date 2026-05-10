@@ -68,7 +68,7 @@ jobs:
             exit 0
           fi
 
-          EXPECTED="android-arm64-v8a.zip android-armeabi-v7a.zip android-x86.zip android-x86_64.zip linux-aarch64.zip linux-arm.zip linux-x86_64.zip macos-arm64.zip macos-x86_64.zip windows-arm64.zip windows-x86_64.zip freebsd-aarch64.zip freebsd-x86_64.zip openbsd-aarch64.zip openbsd-x86_64.zip"
+          EXPECTED="android-arm64-v8a.zip android-armeabi-v7a.zip android-x86.zip android-x86_64.zip linux-aarch64.zip linux-arm.zip linux-x86_64.zip macos-arm64.zip macos-x86_64.zip windows-arm64.zip windows-x86_64.zip freebsd-x86_64.zip"
 
           PRESENT=$(gh release view "$LATEST" --json assets --jq '[.assets[].name] | join(" ")' 2>/dev/null || echo "__no_release__")
 
@@ -274,72 +274,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: freebsd-x86_64, path: out/ }
 
-  build-freebsd-arm64:
-    needs: sync
-    if: needs.sync.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
-      - name: Build inside FreeBSD VM
-        uses: cross-platform-actions/action@v0.27.0
-        with:
-          operating_system: freebsd
-          architecture: arm64
-          version: '14.2'
-          shell: bash
-          run: |
-            sudo pkg install -y go
-            cd cffi_dist
-            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/freebsd-aarch64/libtls_client_go.so .
-      - uses: actions/upload-artifact@v4
-        with: { name: freebsd-aarch64, path: out/ }
-
-  build-openbsd-amd64:
-    needs: sync
-    if: needs.sync.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
-      - name: Build inside OpenBSD VM
-        uses: cross-platform-actions/action@v0.27.0
-        with:
-          operating_system: openbsd
-          architecture: x86-64
-          version: '7.6'
-          shell: bash
-          run: |
-            sudo pkg_add -I go
-            cd cffi_dist
-            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/openbsd-x86_64/libtls_client_go.so .
-      - uses: actions/upload-artifact@v4
-        with: { name: openbsd-x86_64, path: out/ }
-
-  build-openbsd-arm64:
-    needs: sync
-    if: needs.sync.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.sync.outputs.tag }}
-      - name: Build inside OpenBSD VM
-        uses: cross-platform-actions/action@v0.27.0
-        with:
-          operating_system: openbsd
-          architecture: arm64
-          version: '7.6'
-          shell: bash
-          run: |
-            sudo pkg_add -I go
-            cd cffi_dist
-            CGO_ENABLED=1 go build -buildmode=c-shared -o ../out/openbsd-aarch64/libtls_client_go.so .
-      - uses: actions/upload-artifact@v4
-        with: { name: openbsd-aarch64, path: out/ }
-
   release:
     needs:
       - sync
@@ -351,9 +285,6 @@ jobs:
       - build-macos
       - build-android
       - build-freebsd-amd64
-      - build-freebsd-arm64
-      - build-openbsd-amd64
-      - build-openbsd-arm64
     if: needs.sync.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:

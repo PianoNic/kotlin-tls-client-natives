@@ -32,9 +32,6 @@ Each row links to the asset on the latest release.
 | [`macos-arm64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/macos-arm64.zip) | `libtls_client_go.dylib` | macOS Apple Silicon |
 | [`macos-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/macos-x86_64.zip) | `libtls_client_go.dylib` | macOS Intel |
 | [`freebsd-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/freebsd-x86_64.zip) | `libtls_client_go.so` | FreeBSD x86_64 |
-| [`freebsd-aarch64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/freebsd-aarch64.zip) | `libtls_client_go.so` | FreeBSD ARM64 |
-| [`openbsd-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/openbsd-x86_64.zip) | `libtls_client_go.so` | OpenBSD x86_64 |
-| [`openbsd-aarch64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/openbsd-aarch64.zip) | `libtls_client_go.so` | OpenBSD ARM64 |
 
 All binaries are produced by `go build -buildmode=c-shared` from `cffi_dist`.
 
