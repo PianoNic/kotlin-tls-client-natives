@@ -2,7 +2,7 @@
 
 This is a fork of [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client). Its only purpose is to **build cross-platform native binaries** (Linux, macOS, Windows, Android) and publish them as GitHub release assets so that [kotlin-tls-client](https://github.com/PianoNic/kotlin-tls-client) can consume them at build time.
 
-If you are looking for the actual TLS-client library — documentation, examples, contributing, issue tracking — go to **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)**. This fork makes no source-code changes; it only adds the build pipeline.
+If you are looking for the actual TLS-client library (documentation, examples, contributing, issue tracking), go to **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)**. This fork makes no source-code changes; it only adds the build pipeline.
 
 ## What this fork does
 
@@ -16,23 +16,25 @@ The pipeline lives in [`.github/workflows/sync-and-build.yml`](.github/workflows
 
 For every upstream tag, the workflow publishes one zip per target:
 
+Each row links to the asset on the latest release.
+
 | Zip | Artifact inside | Target |
 |---|---|---|
-| `linux-x86_64.zip` | `libtls_client_go.so` | Linux x86_64 |
-| `linux-aarch64.zip` | `libtls_client_go.so` | Linux ARM64 |
-| `linux-arm.zip` | `libtls_client_go.so` | Linux ARMv7 (32-bit) |
-| `macos-x86_64.zip` | `libtls_client_go.dylib` | macOS Intel |
-| `macos-arm64.zip` | `libtls_client_go.dylib` | macOS Apple Silicon |
-| `windows-x86_64.zip` | `tls_client_go.dll` | Windows x86_64 |
-| `windows-arm64.zip` | `tls_client_go.dll` | Windows ARM64 |
-| `android-arm64-v8a.zip` | `libtls_client_go.so` | Android arm64 |
-| `android-armeabi-v7a.zip` | `libtls_client_go.so` | Android armv7 |
-| `android-x86.zip` | `libtls_client_go.so` | Android x86 |
-| `android-x86_64.zip` | `libtls_client_go.so` | Android x86_64 |
-| `freebsd-x86_64.zip` | `libtls_client_go.so` | FreeBSD x86_64 |
-| `freebsd-aarch64.zip` | `libtls_client_go.so` | FreeBSD ARM64 |
-| `openbsd-x86_64.zip` | `libtls_client_go.so` | OpenBSD x86_64 |
-| `openbsd-aarch64.zip` | `libtls_client_go.so` | OpenBSD ARM64 |
+| [`linux-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/linux-x86_64.zip) | `libtls_client_go.so` | Linux x86_64 |
+| [`linux-aarch64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/linux-aarch64.zip) | `libtls_client_go.so` | Linux ARM64 |
+| [`linux-arm.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/linux-arm.zip) | `libtls_client_go.so` | Linux ARMv7 (32-bit) |
+| [`macos-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/macos-x86_64.zip) | `libtls_client_go.dylib` | macOS Intel |
+| [`macos-arm64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/macos-arm64.zip) | `libtls_client_go.dylib` | macOS Apple Silicon |
+| [`windows-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/windows-x86_64.zip) | `tls_client_go.dll` | Windows x86_64 |
+| [`windows-arm64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/windows-arm64.zip) | `tls_client_go.dll` | Windows ARM64 |
+| [`android-arm64-v8a.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/android-arm64-v8a.zip) | `libtls_client_go.so` | Android arm64 |
+| [`android-armeabi-v7a.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/android-armeabi-v7a.zip) | `libtls_client_go.so` | Android armv7 |
+| [`android-x86.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/android-x86.zip) | `libtls_client_go.so` | Android x86 |
+| [`android-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/android-x86_64.zip) | `libtls_client_go.so` | Android x86_64 |
+| [`freebsd-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/freebsd-x86_64.zip) | `libtls_client_go.so` | FreeBSD x86_64 |
+| [`freebsd-aarch64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/freebsd-aarch64.zip) | `libtls_client_go.so` | FreeBSD ARM64 |
+| [`openbsd-x86_64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/openbsd-x86_64.zip) | `libtls_client_go.so` | OpenBSD x86_64 |
+| [`openbsd-aarch64.zip`](https://github.com/PianoNic/kotlin-tls-client-natives/releases/latest/download/openbsd-aarch64.zip) | `libtls_client_go.so` | OpenBSD ARM64 |
 
 All binaries are produced by `go build -buildmode=c-shared` from `cffi_dist`.
 
