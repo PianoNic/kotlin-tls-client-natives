@@ -1,162 +1,44 @@
-# TLS-Client
+# tls-client (fork)
 
-### Preface
+This is a fork of [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client). Its only purpose is to **build cross-platform native binaries** (Linux, macOS, Windows, Android) and publish them as GitHub release assets so that [kotlin-tls-client](https://github.com/PianoNic/kotlin-tls-client) can consume them at build time.
 
-This TLS Client is built upon https://github.com/Carcraftz/fhttp and https://github.com/Carcraftz/utls (https://github.com/refraction-networking/utls). Big thanks to
-all contributors so far. Sadly it seems that the original repositories from Carcraftz are not maintained anymore.
+If you are looking for the actual TLS-client library — documentation, examples, contributing, issue tracking — go to **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)**. This fork makes no source-code changes; it only adds the build pipeline.
 
-### What is TLS Fingerprinting?
+## What this fork does
 
-Some people think it is enough to change the user-agent header of a request to let the server think that the client
-requesting a resource is a specific browser.
-Nowadays this is not enough, because the server might use a technique to detect the client browser which is called TLS
-Fingerprinting.
+1. Syncs `master` from upstream daily via the GitHub merge-upstream API.
+2. When a new upstream release tag appears (or any expected ABI zip is missing on the corresponding release), runs `cffi_dist` builds with `CGO_ENABLED=1` for every supported platform/ABI.
+3. Publishes the zipped shared libraries as assets on a release tagged with the upstream version (`vX.Y.Z`).
 
-Even though this article is about TLS Fingerprinting in NodeJS it well describes the technique in general.
-https://httptoolkit.tech/blog/tls-fingerprinting-node-js/#how-does-tls-fingerprinting-work
+The pipeline lives in [`.github/workflows/sync-and-build.yml`](.github/workflows/sync-and-build.yml).
 
-### Why is this library needed?
+## Released artifacts
 
-With this library you are able to create a http client implementing an interface which is similar to golangs net/http
-client interface.
-This TLS Client allows you to specify the Client (Browser and Version) you want to use, when requesting a server.
+For every upstream tag, the workflow publishes one zip per target:
 
-### Features
+| Zip | Artifact inside | Target |
+|---|---|---|
+| `linux-x86_64.zip` | `libtls_client_go.so` | Linux x86_64 |
+| `linux-aarch64.zip` | `libtls_client_go.so` | Linux ARM64 |
+| `macos-x86_64.zip` | `libtls_client_go.dylib` | macOS Intel |
+| `macos-arm64.zip` | `libtls_client_go.dylib` | macOS Apple Silicon |
+| `windows-x86_64.zip` | `tls_client_go.dll` | Windows x86_64 |
+| `arm64-v8a.zip` | `libtls_client_go.so` | Android arm64 |
+| `armeabi-v7a.zip` | `libtls_client_go.so` | Android armv7 |
+| `x86.zip` | `libtls_client_go.so` | Android x86 |
+| `x86_64.zip` | `libtls_client_go.so` | Android x86_64 |
 
-- ✅ **HTTP/1.1, HTTP/2, HTTP/3** - Full protocol support with automatic negotiation
-- ✅ **Protocol Racing** - Chrome-like "Happy Eyeballs" for HTTP/2 vs HTTP/3
-- ✅ **TLS Fingerprinting** - Mimic Chrome, Firefox, Safari, and other browsers
-- ✅ **HTTP/3 Fingerprinting** - Accurate QUIC/HTTP/3 fingerprints matching real browsers
-- ✅ **WebSocket Support** - Maintain TLS fingerprinting over WebSocket connections
-- ✅ **Custom Header Ordering** - Control the order of HTTP headers
-- ✅ **Proxy Support** - HTTP and SOCKS5 proxies
-- ✅ **Cookie Jar Management** - Built-in cookie handling
-- ✅ **Certificate Pinning** - Enhanced security with custom certificate validation
-- ✅ **Bandwidth Tracking** - Monitor upload/download bandwidth
-- ✅ **Language Bindings** - Use from JavaScript (Node.js), Python, and C# via FFI
+All binaries are produced by `go build -buildmode=c-shared` from `cffi_dist`.
 
-### Interface
+## Where this is consumed
 
-The HTTP Client interface extends the base net/http Client with additional functionality:
+[`kotlin-tls-client`](https://github.com/PianoNic/kotlin-tls-client) downloads these zips at Gradle build time, unpacks them into `dev/kotlintls/natives/<platform>/`, and bundles them inside its published JAR. The pinned version lives in [`natives-version.txt`](https://github.com/PianoNic/kotlin-tls-client/blob/main/natives-version.txt) on the consumer side.
 
-```go
-type HttpClient interface {
-    GetCookies(u *url.URL) []*http.Cookie
-    SetCookies(u *url.URL, cookies []*http.Cookie)
-    SetCookieJar(jar http.CookieJar)
-    GetCookieJar() http.CookieJar
-    SetProxy(proxyUrl string) error
-    GetProxy() string
-    SetFollowRedirect(followRedirect bool)
-    GetFollowRedirect() bool
-    CloseIdleConnections()
-    Do(req *http.Request) (*http.Response, error)
-    Get(url string) (resp *http.Response, err error)
-    Head(url string) (resp *http.Response, err error)
-    Post(url, contentType string, body io.Reader) (resp *http.Response, err error)
+## Reporting issues
 
-    GetBandwidthTracker() bandwidth.BandwidthTracker
-    GetDialer() proxy.ContextDialer
-    GetTLSDialer() TLSDialerFunc
-}
-```
+- **TLS-client behavior or bugs** → upstream: <https://github.com/bogdanfinn/tls-client/issues>
+- **The build pipeline in this fork** → here.
 
-### Detailed Documentation
+## License
 
-https://bogdanfinn.gitbook.io/open-source-oasis/
-
-### Quick Usage Example
-
-```go
-package main
-
-import (
-	"fmt"
-	"io"
-	"log"
-
-	http "github.com/bogdanfinn/fhttp"
-	tls_client "github.com/bogdanfinn/tls-client"
-	"github.com/bogdanfinn/tls-client/profiles"
-)
-
-func main() {
-	jar := tls_client.NewCookieJar()
-	options := []tls_client.HttpClientOption{
-		tls_client.WithTimeoutSeconds(30),
-		tls_client.WithClientProfile(profiles.Chrome_144),
-		tls_client.WithNotFollowRedirects(),
-		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
-	}
-
-	client, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	req, err := http.NewRequest(http.MethodGet, "https://tls.peet.ws/api/all", nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	req.Header = http.Header{
-		"accept":                    {"*/*"},
-		"accept-language":           {"de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"},
-		"user-agent":                {"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"},
-		http.HeaderOrderKey: {
-			"accept",
-			"accept-language",
-			"user-agent",
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	defer resp.Body.Close()
-
-	log.Println(fmt.Sprintf("status code: %d", resp.StatusCode))
-
-	readBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	log.Println(string(readBytes))
-}
-```
-
-### Questions?
-
-Join my discord support server for free: https://discord.gg/7Ej9eJvHqk
-No Support in DMs!
-
-
-### Appreciate my work?
-
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/CaptainBarnius)
-
----
-
-## 🛡️ Need Antibot Bypass?
-
-<a href="https://hypersolutions.co/?utm_source=github&utm_medium=readme&utm_campaign=tls-client" target="_blank"><img src="https://raw.githubusercontent.com/bogdanfinn/tls-client/master/.github/assets/hypersolutions.jpg" height="47" width="149"></a>
-
-TLS fingerprinting alone isn't enough for modern bot protection. **[Hyper Solutions](https://hypersolutions.co?utm_source=github&utm_medium=readme&utm_campaign=tls-client)** provides the missing piece - API endpoints that generate valid antibot tokens for:
-
-**Akamai** • **DataDome** • **Kasada** • **Incapsula**
-
-No browser automation. Just simple API calls that return the exact cookies and headers these systems require.
-
-🚀 **[Get Your API Key](https://hypersolutions.co?utm_source=github&utm_medium=readme&utm_campaign=tls-client)** | 📖 **[Docs](https://docs.justhyped.dev)** | 💬 **[Discord](https://discord.gg/akamai)**
-
----
-
-### Powered by
-[![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
+This fork inherits the license of the upstream project.
