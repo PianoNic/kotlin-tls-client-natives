@@ -51,10 +51,17 @@ func NewWebsocket(logger Logger, options ...WebsocketOption) (*Websocket, error)
 	}
 
 	dialer := &websocket.Dialer{
-		HandshakeTimeout:  config.handshakeTimeout,
-		Jar:               config.cookieJar,
-		ReadBufferSize:    config.readBufferSize,
-		WriteBufferSize:   config.writeBufferSize,
+		HandshakeTimeout: config.handshakeTimeout,
+		Jar:              config.cookieJar,
+		ReadBufferSize:   config.readBufferSize,
+		WriteBufferSize:  config.writeBufferSize,
+		// Real Chrome always offers permessage-deflate on a WebSocket upgrade, so a
+		// Chrome-impersonating client must too — otherwise the handshake omits the
+		// "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits" header
+		// and is trivially distinguishable from a browser. Compressed frames are handled
+		// transparently by the dialer; if the server declines the extension the connection
+		// simply proceeds uncompressed.
+		EnableCompression: true,
 		NetDialTLSContext: config.tlsClient.GetTLSDialer(),
 		NetDialContext:    config.tlsClient.GetDialer().DialContext,
 	}
